@@ -6,6 +6,11 @@ import { icon } from "../icons.js";
 
 let tab = "quickAdd";
 
+// Cache of the current export prompt(s), kept in sync via loadExportCache()
+// so the click handler below can call the clipboard API *synchronously* --
+// see the comment on the click listener for why this matters.
+let exportCache = { prompts: null, unprocessedCount: 0 };
+
 export async function render(container) {
   container.innerHTML = `
     <div class="scroll top-safe">
@@ -71,16 +76,29 @@ function renderTabContent(container) {
     holder.innerHTML = `
       <button class="btn" id="export-btn">${icon("copy", { color: "#fff", size: 16 })}<span id="export-label">未処理単語をプロンプト付きでコピー</span></button>
     `;
-    holder.querySelector("#export-btn").addEventListener("click", async () => {
-      const unprocessed = await getUnprocessedWords();
-      if (unprocessed.length === 0) return;
-      const prompts = buildExportPrompts(unprocessed);
-      await copyToClipboard(prompts[0]);
-      alert(
-        prompts.length > 1
-          ? `${unprocessed.length}語を${prompts.length}バッチに分割しました。まず1バッチ目（最大25語）をコピーしました。Claudeに貼り付けて実行してください。`
-          : "コピーしました。Claude（アプリ／claude.ai）に貼り付けて実行してください。"
-      );
+    // IMPORTANT: the click handler must call copyToClipboard() as its very
+    // first action, with nothing awaited beforehand. iOS Safari only allows
+    // navigator.clipboard.writeText() while the call is still tied to the
+    // original tap ("user activation"); awaiting an IndexedDB read first
+    // (as this used to do) lets that window expire, so the copy silently
+    // fails on iPhone even though it works fine on desktop Chrome. So we
+    // pre-fetch the prompt text into exportCache ahead of time (on render
+    // and whenever the word list changes) and the handler below just reads
+    // that cache synchronously.
+    holder.querySelector("#export-btn").addEventListener("click", () => {
+      const { prompts, unprocessedCount } = exportCache;
+      if (!prompts || prompts.length === 0) return;
+      copyToClipboard(prompts[0])
+        .then(() => {
+          alert(
+            prompts.length > 1
+              ? `${unprocessedCount}語を${prompts.length}バッチに分割しました。まず1バッチ目（最大25語）をコピーしました。Claudeに貼り付けて実行してください。`
+              : "コピーしました。Claude（アプリ／claude.ai）に貼り付けて実行してください。"
+          );
+        })
+        .catch(() => {
+          alert("コピーに失敗しました。お手数ですがプロンプトを長押しして手動でコピーしてください。");
+        });
     });
   } else if (tab === "import") {
     holder.innerHTML = `
@@ -135,6 +153,12 @@ async function refreshUnprocessed(container) {
       )
       .join("");
   }
+  // Keep the export-tab clipboard cache in sync with the current word list
+  // regardless of which tab is showing, so it's ready the instant the user
+  // taps the copy button (see the click listener in renderTabContent).
+  exportCache.unprocessedCount = unprocessed.length;
+  exportCache.prompts = unprocessed.length > 0 ? buildExportPrompts(unprocessed) : null;
+
   // also refresh the export tab's live count if it's showing
   const exportLabel = container.querySelector("#export-label");
   if (exportLabel) {
@@ -150,13 +174,20 @@ async function copyToClipboard(text) {
     // unavailable (e.g. non-HTTPS): a hidden textarea + execCommand.
     const ta = document.createElement("textarea");
     ta.value = text;
+    ta.readOnly = true;
     ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
+    // ta.select() alone doesn't reliably select text on iOS Safari;
+    // setSelectionRange is required there for execCommand("copy") to work.
+    ta.setSelectionRange(0, text.length);
     try {
-      document.execCommand("copy");
+      const ok = document.execCommand("copy");
+      if (!ok) throw new Error("execCommand copy returned false");
     } finally {
       ta.remove();
     }
