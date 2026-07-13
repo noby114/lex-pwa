@@ -3,7 +3,7 @@
 // network -- e.g. offline, or the tunnel/PC scenario this whole rewrite was
 // meant to get away from.
 
-const CACHE_NAME = "lex-pwa-v1";
+const CACHE_NAME = "lex-pwa-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -53,17 +53,21 @@ self.addEventListener("fetch", (event) => {
   // Always go to the network for the dictionary API (fresh lookups only).
   if (url.hostname === "api.dictionaryapi.dev") return;
 
+  // Network-first, falling back to the cache only when offline. We used to
+  // do cache-first + background refresh ("stale-while-revalidate"), but
+  // that meant every app-code update was invisible until a *second* reload
+  // (the first reload got the stale cached copy while the fresh one loaded
+  // in the background). Since this app is actively being updated and full
+  // offline support is a nice-to-have rather than the main use case, always
+  // prefer fresh network content when it's available.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response.ok && event.request.method === "GET") {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached ?? network;
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok && event.request.method === "GET") {
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
