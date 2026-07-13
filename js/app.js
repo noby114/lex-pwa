@@ -46,4 +46,14 @@ if ("serviceWorker" in navigator) {
       // (e.g. running from file:// during local testing).
     });
   });
+
+  // When an updated service worker takes over (i.e. we shipped a fix),
+  // reload once so the page picks up the new code immediately instead of
+  // the user having to notice something's off and manually refresh twice.
+  let reloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloadedForUpdate) return;
+    reloadedForUpdate = true;
+    window.location.reload();
+  });
 }
