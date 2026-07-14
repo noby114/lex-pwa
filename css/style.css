@@ -256,14 +256,22 @@ button { font-family: inherit; }
 .word-detail-reading { font-size: 13px; color: var(--text-muted); margin-bottom: var(--sp-lg); }
 .sense-card { border: 1px solid var(--border); border-radius: calc(var(--radius-md) + 2px); padding: var(--sp-lg); margin-bottom: 10px; }
 .sense-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-.pos-tag { font-size: 10px; color: var(--accent-dark); background: var(--bg-accent); padding: 1px 6px; border-radius: 6px; }
-.phonetic-small { font-size: 12px; color: var(--text-muted); }
+.pos-tag { font-size: 10px; color: var(--accent-dark); background: var(--bg-accent); padding: 1px 6px; border-radius: 6px; cursor: pointer; }
+.phonetic-small { font-size: 12px; color: var(--text-muted); cursor: pointer; }
 .meaning-text { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px; cursor: pointer; }
 .edit-input { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 8px; margin-bottom: 8px; background: var(--surface1); font-size: 14px; }
+.pos-select {
+  font-size: 12px; color: var(--accent-dark); background: var(--bg-accent);
+  border: 1px solid var(--accent); border-radius: 6px; padding: 2px 4px;
+}
+.phonetic-input {
+  font-size: 12px; color: var(--text-primary); border: 1px solid var(--border-strong);
+  border-radius: 6px; padding: 2px 6px; background: var(--surface1); width: 140px;
+}
 .example-box { background: var(--surface1); border-radius: var(--radius-sm); padding: 10px; margin-top: 6px; }
 .example-row { display: flex; gap: 6px; align-items: flex-start; }
-.example-en { font-size: 13px; color: var(--text-primary); flex: 1; }
-.example-ja { font-size: 12px; color: var(--text-secondary); margin-top: 4px; margin-left: 20px; }
+.example-en { font-size: 13px; color: var(--text-primary); flex: 1; cursor: pointer; }
+.example-ja { font-size: 12px; color: var(--text-secondary); margin-top: 4px; margin-left: 20px; cursor: pointer; }
 
 /* --- icon buttons --- */
 .icon-btn { background: none; border: none; padding: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); }
