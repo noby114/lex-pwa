@@ -65,7 +65,7 @@ export async function render(container) {
       <div class="section-label">読み上げ音声</div>
       <div class="notice-box">
         <div class="notice-text">
-          読み上げにはiPhone本体の音声合成機能を使っています。iPhoneの「設定」→「アクセシビリティ」→「読み上げコンテンツ」→「声」から英語の音声を高品質（Enhanced／Premium）でダウンロードすると、ここで選べるようになり、例文の読み上げの質が上がります。
+          読み上げにはiPhone本体の音声合成機能を使っています。Webアプリの仕様上、iPhoneの「設定」からダウンロードした高品質（Enhanced／Premium）の音声は選択できません（Apple側の制限です）。下の一覧から、最も自然に聞こえる声（例：Karenなど）を選んでお使いください。
         </div>
       </div>
       <div class="card" id="voice-card">
