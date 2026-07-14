@@ -148,13 +148,22 @@ export async function render(container) {
 async function renderVoicePicker(container) {
   const card = container.querySelector("#voice-card");
   if (!card) return;
+  card.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">音声一覧を読み込み中…</div>`;
   const voices = await listEnglishVoices();
   // The container may have been re-rendered (user navigated away and the
   // screen was torn down) while we were waiting on voices -- bail if so.
   if (!container.isConnected || !container.querySelector("#voice-card")) return;
 
   if (voices.length === 0) {
-    card.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">利用可能な音声が見つかりませんでした。</div>`;
+    // iOS Safari (especially running as a home-screen PWA) sometimes just
+    // never reports any voices on a given page load -- there's no reliable
+    // fix from the web-app side, so offer a manual retry rather than leaving
+    // a dead end.
+    card.innerHTML = `
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">音声一覧を読み込めませんでした。少し待ってから再試行してみてください。</div>
+      <button class="btn-outline" id="voice-retry-btn" style="width:100%">再試行</button>
+    `;
+    card.querySelector("#voice-retry-btn").addEventListener("click", () => renderVoicePicker(container));
     return;
   }
 
