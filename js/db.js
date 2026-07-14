@@ -7,6 +7,7 @@
 const DB_NAME = "lexdb";
 const DB_VERSION = 1;
 const DAILY_REVIEW_LIMIT_KEY = "dailyReviewLimit";
+const PREFERRED_VOICE_KEY = "preferredVoiceURI";
 export const DEFAULT_DAILY_REVIEW_LIMIT = 40;
 
 let dbPromise = null;
@@ -572,6 +573,21 @@ export async function getDailyReviewLimit() {
 export async function setDailyReviewLimit(limit) {
   await tx(["setting"], "readwrite", async (t) => {
     t.objectStore("setting").put({ key: DAILY_REVIEW_LIMIT_KEY, value: String(limit) });
+  });
+}
+
+// The user's preferred Web Speech API voice (persisted so it also travels
+// with the backup/restore JSON, since it lives in the same "setting" store).
+export async function getPreferredVoiceURI() {
+  return tx(["setting"], "readonly", async (t) => {
+    const row = await reqp(t.objectStore("setting").get(PREFERRED_VOICE_KEY));
+    return row ? row.value : null;
+  });
+}
+
+export async function setPreferredVoiceURI(uri) {
+  await tx(["setting"], "readwrite", async (t) => {
+    t.objectStore("setting").put({ key: PREFERRED_VOICE_KEY, value: uri ?? "" });
   });
 }
 

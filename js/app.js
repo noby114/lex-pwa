@@ -1,5 +1,8 @@
 import { registerRoute, initRouter, navigate } from "./router.js";
 import { icon } from "./icons.js";
+import { initTts } from "./tts.js";
+
+initTts();
 import * as home from "./screens/home.js";
 import * as addWord from "./screens/addWord.js";
 import * as wordList from "./screens/wordList.js";
