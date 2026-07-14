@@ -217,26 +217,37 @@ export async function applyGeneratedContent(wordId, data) {
       (a, b) => a.sortOrder - b.sortOrder
     );
 
-    let senseIds = [];
-    if (existingSenses.length > 0) {
-      for (let i = 0; i < existingSenses.length; i++) {
-        const generated = data.senses[i];
-        if (generated) {
-          existingSenses[i].meaningJa = generated.meaningJa;
-          senseStore.put(existingSenses[i]);
-        }
-        senseIds.push(existingSenses[i].id);
-      }
-    } else {
-      for (let i = 0; i < data.senses.length; i++) {
-        const s = data.senses[i];
+    // Match each Claude-generated sense to an existing (dictionary-derived)
+    // sense by part of speech, NOT by array position. The dictionary API
+    // and Claude don't necessarily return senses in the same order, so the
+    // old index-based matching ("existingSenses[i] gets data.senses[i]'s
+    // meaning") could silently attach a noun's meaning/phonetic to the verb
+    // sense and vice versa -- the "品詞が逆" (reversed part of speech) and
+    // "複数発音がうまく入らない" (multiple-pronunciation) bugs. Any existing
+    // sense is consumed at most once (usedExistingIds) so duplicate POS
+    // entries don't collide, and a generated sense with no dictionary match
+    // (e.g. Claude adds a preposition sense the dictionary API missed) is
+    // added as a new sense instead of being dropped.
+    const usedExistingIds = new Set();
+    const senseIds = [];
+    let nextSortOrder = existingSenses.length;
+
+    for (const generated of data.senses) {
+      const match = existingSenses.find((s) => s.pos === generated.pos && !usedExistingIds.has(s.id));
+      if (match) {
+        usedExistingIds.add(match.id);
+        match.meaningJa = generated.meaningJa;
+        if (generated.phonetic) match.phonetic = generated.phonetic;
+        senseStore.put(match);
+        senseIds.push(match.id);
+      } else {
         const id = await reqp(
           senseStore.add({
             wordId,
-            pos: s.pos,
-            meaningJa: s.meaningJa,
-            phonetic: s.phonetic ?? null,
-            sortOrder: i,
+            pos: generated.pos,
+            meaningJa: generated.meaningJa,
+            phonetic: generated.phonetic ?? null,
+            sortOrder: nextSortOrder++,
           })
         );
         senseIds.push(id);
@@ -308,6 +319,105 @@ export async function updateSenseMeaning(senseId, meaningJa) {
     if (!sense) return;
     sense.meaningJa = meaningJa;
     store.put(sense);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// manual editing -- lets the user fix entries after the fact (wrong POS,
+// missing/garbled phonetic, typo'd example, etc.) instead of having to
+// re-run the whole Claude export/import flow for one word.
+// ---------------------------------------------------------------------------
+
+export async function updateWordHeadword(wordId, headword) {
+  const trimmed = headword.trim();
+  if (!trimmed) throw new Error("単語を入力してください");
+  await tx(["word"], "readwrite", async (t) => {
+    const store = t.objectStore("word");
+    const word = await reqp(store.get(wordId));
+    if (!word) return;
+    const existing = await reqp(store.index("headword").get(trimmed));
+    if (existing && existing.id !== wordId) {
+      throw new Error(`「${trimmed}」はすでに登録されています`);
+    }
+    word.headword = trimmed;
+    store.put(word);
+  });
+}
+
+export async function updateWordReading(wordId, reading) {
+  await tx(["word"], "readwrite", async (t) => {
+    const store = t.objectStore("word");
+    const word = await reqp(store.get(wordId));
+    if (!word) return;
+    word.reading = reading.trim() || null;
+    store.put(word);
+  });
+}
+
+export async function updateSensePos(senseId, pos) {
+  await tx(["sense"], "readwrite", async (t) => {
+    const store = t.objectStore("sense");
+    const sense = await reqp(store.get(senseId));
+    if (!sense) return;
+    sense.pos = pos;
+    store.put(sense);
+  });
+}
+
+export async function updateSensePhonetic(senseId, phonetic) {
+  await tx(["sense"], "readwrite", async (t) => {
+    const store = t.objectStore("sense");
+    const sense = await reqp(store.get(senseId));
+    if (!sense) return;
+    sense.phonetic = phonetic.trim() || null;
+    store.put(sense);
+  });
+}
+
+export async function addSense(wordId, { pos, meaningJa, phonetic }) {
+  return tx(["sense"], "readwrite", async (t) => {
+    const store = t.objectStore("sense");
+    const existing = await reqp(store.index("wordId").getAll(wordId));
+    const sortOrder = existing.length > 0 ? Math.max(...existing.map((s) => s.sortOrder)) + 1 : 0;
+    const id = await reqp(
+      store.add({ wordId, pos, meaningJa: meaningJa ?? "", phonetic: phonetic || null, sortOrder })
+    );
+    return { ...(await reqp(store.get(id))) };
+  });
+}
+
+export async function deleteSense(senseId) {
+  await tx(["sense", "example"], "readwrite", async (t) => {
+    const senseStore = t.objectStore("sense");
+    const exampleStore = t.objectStore("example");
+    const examples = await reqp(exampleStore.index("senseId").getAll(senseId));
+    for (const e of examples) exampleStore.delete(e.id);
+    senseStore.delete(senseId);
+  });
+}
+
+export async function updateExample(exampleId, { english, japanese }) {
+  await tx(["example"], "readwrite", async (t) => {
+    const store = t.objectStore("example");
+    const example = await reqp(store.get(exampleId));
+    if (!example) return;
+    example.english = english;
+    example.japanese = japanese;
+    store.put(example);
+  });
+}
+
+export async function addExample(wordId, senseId, { english, japanese }) {
+  return tx(["example"], "readwrite", async (t) => {
+    const store = t.objectStore("example");
+    const id = await reqp(store.add({ wordId, senseId, english, japanese }));
+    return { ...(await reqp(store.get(id))) };
+  });
+}
+
+export async function deleteExample(exampleId) {
+  await tx(["example"], "readwrite", async (t) => {
+    t.objectStore("example").delete(exampleId);
   });
 }
 

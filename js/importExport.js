@@ -48,7 +48,7 @@ function buildSinglePrompt(words) {
 ${wordList}`;
 }
 
-const VALID_POS = ["名詞", "動詞", "形容詞", "副詞", "前置詞", "接続詞", "熟語", "その他"];
+export const VALID_POS = ["名詞", "動詞", "形容詞", "副詞", "前置詞", "接続詞", "熟語", "その他"];
 
 export function parseImportPayload(raw) {
   const jsonText = extractJsonArray(raw);
