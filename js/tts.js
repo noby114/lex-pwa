@@ -49,20 +49,26 @@ export async function initTts() {
 }
 
 // For the voice-picker UI in the account screen. speechSynthesis.getVoices()
-// is sometimes empty until the async "voiceschanged" event fires (a known
-// browser quirk), so this waits for that -- it's only used to populate a
-// <select>, not to actually speak, so being async here is fine.
-export async function listEnglishVoices() {
-  const immediate = window.speechSynthesis.getVoices();
-  if (immediate.length > 0) return immediate.filter((v) => v.lang?.toLowerCase().startsWith("en"));
-  return new Promise((resolve) => {
-    const done = () => {
-      window.speechSynthesis.removeEventListener("voiceschanged", done);
-      resolve(window.speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().startsWith("en")));
-    };
-    window.speechSynthesis.addEventListener("voiceschanged", done);
-    setTimeout(done, 1000);
-  });
+// is sometimes empty on the first call until the async "voiceschanged" event
+// fires -- but on iOS Safari (especially when the app is installed to the
+// home screen and running standalone) that event is unreliable and may never
+// fire at all, so a single wait-for-the-event approach isn't enough there.
+// Poll instead, which is the documented workaround for that Safari bug. This
+// is only used to populate a <select>, not to actually speak, so being async
+// and possibly slow is fine.
+export async function listEnglishVoices({ pollMs = 200, timeoutMs = 4000 } = {}) {
+  const filterEn = (voices) => voices.filter((v) => v.lang?.toLowerCase().startsWith("en"));
+
+  let voices = filterEn(window.speechSynthesis.getVoices());
+  if (voices.length > 0) return voices;
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    voices = filterEn(window.speechSynthesis.getVoices());
+    if (voices.length > 0) return voices;
+  }
+  return voices; // may still be empty -- caller shows a "not found" state
 }
 
 export function getPreferredVoiceURICached() {
